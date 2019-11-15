@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[11]:
+# In[2]:
 
 
 import pandas as pd
@@ -16,7 +16,7 @@ import datetime
 import io
 
 
-# In[103]:
+# In[3]:
 
 
 
@@ -582,23 +582,4 @@ if __name__ == '__main__':
     b5 = Button(front, text='Quit', command=lambda: (front.destroy()),bg ='IndianRed4').grid(row=10, column=0, sticky=W, pady=4)
     initialvalues()
     mainloop()
-
-
-# In[ ]:
-
-
-df = pd.DataFrame([['Qwotc',1,2,3],['Qwotc2',4,5,6],['NTC',7,8,3]],columns = ['Ind','A','B','C'])
-
-u = {'Qwotc':'RMB','Qwotc2':'RMB','NTC':'kay'}
-df['Pop'] = df['Ind'].apply(lambda x: u[x])
-display(df)
-
-
-# In[ ]:
-
-
-d = {'ok':'ata'}
-
-ok = 'ok'
-print(d[ok])
 
