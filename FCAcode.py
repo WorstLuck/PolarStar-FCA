@@ -16,7 +16,7 @@ import datetime
 import io
 
 
-# In[6]:
+# In[14]:
 
 
 
@@ -345,7 +345,7 @@ def main():
 
 
     # To excel
-    Writer = pd.ExcelWriter('Split.xlsx',engine='xlsxwriter')
+    Writer = pd.ExcelWriter('{}'.format(File.split('.xlsx')[0])+ ' Split'+'.xlsx',engine='xlsxwriter')
 
     FinalSum.to_excel(Writer,sheet_name = 'Mg Rep - Ex BDown')
     Final4.to_excel(Writer,sheet_name = 'Mg Rep - Ex BDown',startcol= FinalSum.shape[1] + 3)
