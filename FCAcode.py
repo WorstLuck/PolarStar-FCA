@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[5]:
 
 
 import pandas as pd
@@ -16,7 +16,7 @@ import datetime
 import io
 
 
-# In[3]:
+# In[6]:
 
 
 
@@ -52,7 +52,9 @@ def initialvalues():
     key.set_index(['Exchange'],inplace=True)
 
     #Codes to banks
-    Cd = {'0PSF1':'SG','0PSF2':'SG','FKW642':'RMB','FUF999':'RMB','PSFL01':'Macq','PSMSEZCFGC':'Macq','RJO 40020':'RJO'}
+    Cd = {'0PSF1':'SG','0PSF2':'SG','FKW642':'RMB','FUF999':'RMB','PSFL01':'Macq','PSMSEZCFGC':'Macq','RJO 40020':'RJO',
+         '0PSS1':'SG','0PSS2':'SG','FFQ999':'RMB','POSMSAPSGC':'Macq','PSSPEC01':'Macq','JPM76298':'JPM','FUF664':'RMB',
+         'JPMOTC_PSLTD':'JPM','CIB1100':'ABSA'}
     Banks = ['RJO','JPM','Macq','SG','RMB','ABSA']
 
 
@@ -125,15 +127,37 @@ def main():
 
 
     #Some variables for INDEXP
-    TbillL = Fd12.xs('TBILL',level=1, drop_level=False)['LONG'].sum()
-    TbillS = abs(Fd12.xs('TBILL',level=1, drop_level=False)['SHORT'].sum())
-    MACQL = Fd12.xs('MACQ_RPI',level=1, drop_level=False)['LONG'].sum()
-    MACQS = abs(Fd12.xs('MACQ_RPI',level=1, drop_level=False)['SHORT'].sum())
-    ok = Fd12Sum.loc['Other cash and cash equivalents (excluding governement securities)']['ABS'] - TbillL
-    E129L = Fd12Sum.loc['Other Commodities/ Livestock']['LONG']
-    E129S = abs(Fd12Sum.loc['Other Commodities/ Livestock']['SHORT'])
-    E130L = Fd12Sum.loc['Other Commodities/ Agricultural Products']['LONG']
-    E130S = abs(Fd12Sum.loc['Other Commodities/ Agricultural Products']['SHORT'])
+    try:
+        TbillL = Fd12.xs('TBILL',level=1, drop_level=False)['LONG'].sum()
+        TbillS = abs(Fd12.xs('TBILL',level=1, drop_level=False)['SHORT'].sum())
+    except:
+        TbillL = '-'
+        TbillS = '-'
+    try:
+        MACQL = Fd12.xs('MACQ_RPI',level=1, drop_level=False)['LONG'].sum()
+        MACQS = abs(Fd12.xs('MACQ_RPI',level=1, drop_level=False)['SHORT'].sum())
+    except:
+        print('No MACQ_RPI commodity found')
+        MACQL ='-'
+        MACQS = '-'
+    try:
+        ok = Fd12Sum.loc['Other cash and cash equivalents (excluding governement securities)']['ABS'] - TbillL
+    except:
+        print('Other cash and ash equivalents (excluding governement securities) not found')
+        ok = '-'
+    try:
+        E129L = Fd12Sum.loc['Other Commodities/ Livestock']['LONG']
+        E129S = abs(Fd12Sum.loc['Other Commodities/ Livestock']['SHORT'])
+    except:
+        E129L = '-'
+        E129S = '-'
+        print('Other commodities/livestock index not found')
+    try:
+        E130L = Fd12Sum.loc['Other Commodities/ Agricultural Products']['LONG']
+        E130S = abs(Fd12Sum.loc['Other Commodities/ Agricultural Products']['SHORT'])
+    except:
+        E130L = '-'
+        E130S = '-'
 
     MASTER = pd.DataFrame(data = [[TbillL,TbillS],[MACQL,MACQS],[ok,None],[E129L,E129S],[E130L,E130S]],
                           columns = ['LONG','SHORT'],index=[77,107,120,129,130])
@@ -232,8 +256,7 @@ def main():
     Fd6 = Fd6[['Nominal USD']]
     Fd6['ABS'] = Fd6['Nominal USD'].apply(lambda x: abs(x))
     Fd6Sum = Fd6.groupby(['Description']).sum().round(1)
-    Fd6Com = Fd6.reset_index(True)
-
+    Fd6Com = Fd6.reset_index(drop=False)
     OTC = Fd6Com[(Fd6Com['Commodity'] == 'QCOTC')|(Fd6Com['Commodity'] == 'CCOTC') 
                  |(Fd6Com['Commodity'] == 'SYOTC')]
 
@@ -282,8 +305,8 @@ def main():
 
     Final = Ex[['Nominal USD']]
 
-    FinalPlus = Final[Ex.groupby('Nominal USD')['Nominal USD'].transform(lambda x: x > 0)].reset_index(True)
-    FinalMinus = Final[Ex.groupby('Nominal USD')['Nominal USD'].transform(lambda x: x < 0)].reset_index(True)
+    FinalPlus = Final[Ex.groupby('Nominal USD')['Nominal USD'].transform(lambda x: x > 0)].reset_index()
+    FinalMinus = Final[Ex.groupby('Nominal USD')['Nominal USD'].transform(lambda x: x < 0)].reset_index()
 
     Final3 = pd.merge(FinalPlus,FinalMinus, on=['Exchange','Commodity'],how='outer',suffixes = (' +',' -'))
     Final3 = Final3.fillna(0)
@@ -582,4 +605,16 @@ if __name__ == '__main__':
     b5 = Button(front, text='Quit', command=lambda: (front.destroy()),bg ='IndianRed4').grid(row=10, column=0, sticky=W, pady=4)
     initialvalues()
     mainloop()
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
