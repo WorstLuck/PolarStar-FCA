@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[2]:
 
 
 import pandas as pd
@@ -16,35 +16,48 @@ import datetime
 import io
 
 
-# In[14]:
+# In[3]:
 
 
 
 # Initialized variables
-def initialvalues():
+def initialvalues(makeJoined):
     global date
-    global File
-    global Sheet
+    
+    global File1
+    global File2
+    
+    global sheetName1
+    global sheetName2
+
     global key_file
     global NAV
     global CashU
     global OTC_Margin
     global keys
-    global Cd
+    global BankCodes
     global Banks
     global key
+    global InvestorGroups
     
     Files = [element for element in os.listdir() if 'xlsx' in element.lower() or 'xls' in element.lower()]
-    Op1 = OptionMenu(front,Dump,*Files).grid(row=1,column=0)
+    
+    if makeJoined == False:
+        Op1 = OptionMenu(front,Dump,*Files).grid(row=1,column=0)
+    else:
+        Op1 = OptionMenu(master,Dump,*Files).grid(row=1,column=1)
+        Op11 = OptionMenu(master,Dump2,*Files).grid(row=3,column=1)
+        File2 = Dump2.get()
+        sheetName2 = str(d['e2'].get())
     Op2 = OptionMenu(front,Keys,*Files).grid(row=3,column=0)
     
-    File = Dump.get()
+    File1 = Dump.get()
     key_file = Keys.get()
-    Sheet = str(d['e1'].get())
-    date = str(d['e2'].get())
-    NAV = float(d['e3'].get().replace(',',''))
-    CashU = float(d['e4'].get().replace(',',''))
-    OTC_Margin = float(d['e5'].get().replace(',',''))
+    sheetName1 = str(d['e1'].get())
+    date = str(d['e3'].get())
+    NAV = float(d['e4'].get().replace(',',''))
+    CashU = float(d['e5'].get().replace(',',''))
+    OTC_Margin = float(d['e6'].get().replace(',',''))
 
     # Key dataset
     keys ={'Safex':'XSAF','CME':'XCME','Cbot':'XCBT','Nymex':'NYMX','Nybot':'XNYF','ICE':'IEPA','Liffe':'XLIF'}
@@ -52,10 +65,14 @@ def initialvalues():
     key.set_index(['Exchange'],inplace=True)
 
     #Codes to banks
-    Cd = {'0PSF1':'SG','0PSF2':'SG','FKW642':'RMB','FUF999':'RMB','PSFL01':'Macq','PSMSEZCFGC':'Macq','RJO 40020':'RJO',
-         '0PSS1':'SG','0PSS2':'SG','FFQ999':'RMB','POSMSAPSGC':'Macq','PSSPEC01':'Macq','JPM76298':'JPM','FUF664':'RMB',
-         'JPMOTC_PSLTD':'JPM','CIB1100':'ABSA'}
+    BankCodes = pd.read_excel('keys.xlsx',sheet_name='BankCodes')
+    BankCodes.set_index('Code',inplace=True)
+    BankCodes = BankCodes['Bank']
+    
     Banks = ['RJO','JPM','Macq','SG','RMB','ABSA']
+    
+    # InvestorGroups
+    InvestorGroups = pd.read_excel('keys.xlsx',sheet_name='InvestGroups')
 
 
 # Return EUR to Dollar rates
@@ -82,11 +99,18 @@ def GrabRate(date):
     rate = float(df['OBS_VALUE'].values[0])
     return print(rate)
 
-def main():
+def main(makeJoined):
     GrabRate(date)
-
-    Sheet1 = pd.read_excel(File,sheet_name = Sheet)
-    codes = pd.read_excel(key_file)
+    
+    if makeJoined == True:
+        Dump1 = pd.read_excel(File1,sheet_name = sheetName1)
+        Dump2 = pd.read_excel(File2,sheet_name = sheetName2)
+        Suffix = 'Joined'
+        Sheet1 = pd.concat([Dump1,Dump2])
+    else:
+        Sheet1 = pd.read_excel(File1,sheet_name = sheetName1)
+        Suffix = ''
+    codes = pd.read_excel(key_file,sheet_name='Entities')
 
     codes.set_index(['Entity','Name'],inplace=True)
 
@@ -94,6 +118,7 @@ def main():
     Mg1 = Sheet1.groupby(['Manager Category','Commodity']).sum().round(1)
     Fd1 = Sheet1.groupby(['Contract']).sum().round(1)
     Fd2 = Sheet1.groupby(['Contract','Commodity','Exchange','Manager Category','Description','Last Trade Date'],as_index=False).sum().round(1)
+    Fd2['Last Trade Date'] = Fd2['Last Trade Date'].apply(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d %H:%M:%S').strftime('%m/%d/%Y'))
     Fd3 = Sheet1.groupby(['Geo Region','Commodity']).sum().round(1)
     Fd4 = Sheet1.groupby(['Fund Category','Commodity']).sum().round(1)
     Fd6 = Sheet1.groupby(['Description','Commodity']).sum().round(1)
@@ -197,7 +222,7 @@ def main():
     Fd7 = Fd7[['Nominal USD']]
     Fd7['ABS'] = Fd7['Nominal USD'].apply(lambda x: abs(x))
     Fd7Sum = Fd7.groupby(['Account Code']).sum().round(1).reset_index()
-    Fd7Sum['Bank'] = Fd7Sum['Account Code'].apply(lambda x: Cd[x])
+    Fd7Sum['Bank'] = Fd7Sum['Account Code'].apply(lambda x: BankCodes[x])
     Fd7Final = Fd7Sum.groupby(['Bank']).sum().round(1).sort_values(by=['ABS'],ascending=False)
     Fd7Final['Cash at Bank'] = 0
     Fd7Final['%'] = 0
@@ -266,7 +291,7 @@ def main():
     Fd6.drop('SYOTC',level=1,inplace=True)
 
     Fd6FinalSum = Fd6.groupby(['Description'])
-    DervGross = Fd6['ABS'].sum()
+    DervGross = Fd6['Nominal USD'].sum()
     Margin = NAV*CashU - OTC_Margin
     Difference = DervGross - Margin
     Percentage = Difference*100/NAV
@@ -345,7 +370,7 @@ def main():
 
 
     # To excel
-    Writer = pd.ExcelWriter('{}'.format(File.split('.xlsx')[0])+ ' Split'+'.xlsx',engine='xlsxwriter')
+    Writer = pd.ExcelWriter('{}'.format(Suffix) + 'Split'+'.xlsx',engine='xlsxwriter')
 
     FinalSum.to_excel(Writer,sheet_name = 'Mg Rep - Ex BDown')
     Final4.to_excel(Writer,sheet_name = 'Mg Rep - Ex BDown',startcol= FinalSum.shape[1] + 3)
@@ -379,7 +404,9 @@ def main():
 
     Fd10.to_excel(Writer, sheet_name='Fund Rep - Counter Risk',startrow=2)
     codes.to_excel(Writer, sheet_name='Fund Rep - Counter Risk',startcol=Fd10.shape[1] + 3)
-
+    
+    InvestorGroups.to_excel(Writer, sheet_name='FundRep – InvestorGroups')
+    
     Fd6.to_excel(Writer,sheet_name = 'FundRep-BorrowR GrossExp')
     Fd6Sum.to_excel(Writer,sheet_name = 'FundRep-BorrowR GrossExp',startcol= Fd6.shape[1] + 3)
     ETD.to_excel(Writer,sheet_name = 'FundRep-BorrowR GrossExp',startcol= Fd6Sum.shape[1] + Fd6.shape[1] + 6 )
@@ -394,8 +421,10 @@ def main():
     Fd7.to_excel(Writer,sheet_name = 'FundRep-BorrowSource')
     Fd7Sum.to_excel(Writer,sheet_name = 'FundRep-BorrowSource',startcol= Fd7.shape[1] + 3)
     Fd7Final.to_excel(Writer,sheet_name = 'FundRep-BorrowSource',startrow = Fd7Sum.shape[0]+3,startcol= Fd7.shape[1] + 3)
+    
     codes.to_excel(Writer, sheet_name='FundRep-BorrowSource', startrow = 
                    Fd7Sum.shape[0] + Fd7Final.shape[0] + 6, startcol = Fd7.shape[1] + 3)
+
 
     #Formatting
     Workbook = Writer.book
@@ -412,22 +441,29 @@ def main():
     Worksheet11 = Writer.sheets['FundRep-Op R#ofPosi']
     Worksheet12 = Writer.sheets['Fund Rep - Counter Risk']
     Worksheet13 = Writer.sheets['FundRep-IndExp']
-
+    Worksheet14 = Writer.sheets['FundRep – InvestorGroups']
+    
+    # Write codes
+    Worksheet8.write('J6','229')
+    Worksheet8.write('J10','230')
+    Worksheet8.write('J11','233/4')
+    
+    
     codes = Writer.sheets['Fund Rep - Prime Broker']
 
-    Format = Workbook.add_format({'num_format':'#,##0.00'})
+    Format = Workbook.add_format({'num_format':'###0.00'})
     Format2 = Workbook.add_format({
         'bold': True,
         'text_wrap': True,
         'valign': 'top',
         'fg_color': '#122057',
-        'border': 1, 'font_color':'white','num_format':'#,##0.00'})
+        'border': 1, 'font_color':'white','num_format':'###0.00'})
     Format3 = Workbook.add_format({
         'bold': True,
         'text_wrap': True,
         'valign': 'top',
         'fg_color': '#ff0000',
-        'border': 1, 'font_color':'white','num_format':'#,##0.00'})
+        'border': 1, 'font_color':'white','num_format':'###0.00'})
     Format3.set_center_across()
 
     PercForm = Workbook.add_format({'num_format':'0.00%'})
@@ -438,7 +474,7 @@ def main():
         'text_wrap': True,
         'valign': 'top',
         'fg_color': '#122057',
-        'border': 1, 'font_color':'white','num_format':'$#,##0.00'})
+        'border': 1, 'font_color':'white','num_format':'###0.00'})
 
     Worksheet.set_column('A:L',20,Format)
     Worksheet.set_tab_color('#00B050')
@@ -507,9 +543,13 @@ def main():
     Worksheet13.set_zoom(85)
     Worksheet13.set_tab_color('#ff0000')
 
+    
     codes.set_column('A:L',35,Format)
     codes.set_tab_color('#00B050')
-
+    
+    Worksheet14.set_column('A:L',35,Format)
+    Worksheet14.set_tab_color('#00B050')
+    
     Worksheet.write(Final4.shape[0] + 3,FinalSum.shape[1] + Final4.shape[1] + 3,'1:' + str(rate) + ' or ' + str(np.round(1/rate,4)) + ':1',Format2)
     Worksheet.write(Final4.shape[0] + 2,FinalSum.shape[1] + Final4.shape[1] + 3,'Current EUR to USD:',Format2)
 
@@ -543,11 +583,19 @@ if __name__ == '__main__':
     # Size of GUI
     front.minsize(width=300, height=80)
     # Title of GUI
-    front.title('FCB reporting')
+    front.title('FCA reporting')
     # Allow to not be resizable
     front.resizable(0,0)
     
-    Labels = ["Dump File:","Sheet Name:","Keys File:","Date","NAV","CashU","OTC_Margin"]
+    master = tk.Toplevel(front)
+    master.title('Join Dumps')
+    master.withdraw()
+    
+    Labels = ["Dump File:","Sheet Name 1:","Keys File:","Sheet Name 2:","Date","NAV","CashU","OTC_Margin"]
+    masterLabels = ["Dump File 1","Dump File 2"]
+    Label(master,text=masterLabels[0]).grid(row=0,column=1)
+    Label(master,text=masterLabels[1]).grid(row=2,column=1)
+    
     Label(front, text = Labels[0]).grid(row = 0, column = 0)
     Label(front, text = Labels[1]).grid(row = 0, column = 2)
     Label(front, text = Labels[2]).grid(row = 2, column = 0)
@@ -555,7 +603,8 @@ if __name__ == '__main__':
     Label(front, text = Labels[4]).grid(row = 4, column = 2)
     Label(front, text = Labels[5]).grid(row = 6, column = 2)
     Label(front, text = Labels[6]).grid(row = 8, column = 2)
-    for i in range (1,6):
+    Label(front, text = Labels[6]).grid(row = 10, column = 2)
+    for i in range (1,7):
         d["e{}".format(i)] = Entry(front,width=20)
     
     d["e1"].grid(row = 1, column = 2)
@@ -563,7 +612,10 @@ if __name__ == '__main__':
     d["e3"].grid(row = 5, column = 2)
     d["e4"].grid(row = 7, column = 2)
     d["e5"].grid(row = 9, column = 2)
+    d["e6"].grid(row = 11, column = 2)
+    
     Dump = StringVar(front)
+    Dump2 = StringVar(front)
     Keys = StringVar(front)
     
     var1 = IntVar()
@@ -598,13 +650,25 @@ if __name__ == '__main__':
         print('ERROR: results.txt File cannot be found. Please paste it into the current directory!')
     
     
-    b1 = Button(front,text='Make',command=lambda:(initialvalues(),main()),bg='red').grid(row=10,column=2)
-    b2 = Button(front,text='Load Previous',command=lambda:(load(d,'disabled')),bg='orange').grid(row=10,column=1)
-    b3 = Button(front,text="Save inputs", command=lambda: save(),bg = 'DeepSkyBlue3').grid(row=11,column = 1)
-    b4 = Checkbutton(front,text='Edit Values?',variable=var1,command=lambda: load(d,'disabled')).grid(row=12,column=1)
-    b5 = Button(front, text='Quit', command=lambda: (front.destroy()),bg ='IndianRed4').grid(row=10, column=0, sticky=W, pady=4)
-    initialvalues()
+    b1 = Button(front,text='Make Singular',command=lambda:(initialvalues(False),main(False)),bg='green').grid(row=13,column=1)
+    b2 = Button(front,text='Load Previous',command=lambda:(load(d,'disabled')),bg='orange').grid(row=13,column=2)
+    b3 = Button(front,text="Save inputs", command=lambda: save(),bg = 'DeepSkyBlue3').grid(row=14,column = 2)
+    b4 = Checkbutton(front,text='Edit Values?',variable=var1,command=lambda: load(d,'disabled')).grid(row=12,column=2)
+    b5 = Button(front, text='Quit', command=lambda: (front.destroy()),bg ='IndianRed4').grid(row=13, column=0, sticky=W, pady=4)
+    
+    #Join buttons
+    b6 = Button(front,text='Join',command=lambda:(master.deiconify(),initialvalues(True)),bg='Purple').grid(row=14,column=1)
+    b7 = Button(master,text='Make Joined',command=lambda:(initialvalues(True),main(True)),bg='green').grid(row=4,column=2)
+    b8 = Button(master,text='Hide', command=lambda: (master.withdraw()),bg ='IndianRed4').grid(row=4, column=0, sticky=W, pady=4)
+
+    initialvalues(False)
     mainloop()
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
